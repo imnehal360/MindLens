@@ -1,0 +1,19 @@
+# Virtual Environments
+venv/
+venv311/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# OS Files
+.DS_Store
+
+# Secrets & Configs
+.env
+
+# Large binaries exceeding GitHub 100MB limit
+models/face_model/face_model.pt
+models/audio_model/model.safetensors
+datasets/text/mindlens_text_dataset.csv
+datasets/text/Suicide_Detection.csv

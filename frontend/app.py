@@ -520,13 +520,13 @@ def page_fusion():
     c1, c2, c3 = st.columns(3)
     with c1:
         with st.container(border=True):
-            st.markdown("**💬 Text Input**")
+            st.markdown("** Text Input**")
             text_in = st.text_area("Write your thoughts…", height=130, key="fusion_text",
                                    label_visibility="collapsed",
                                    placeholder="How are you feeling today?")
     with c2:
         with st.container(border=True):
-            st.markdown("**🎙️ Voice / Audio**")
+            st.markdown("** Voice / Audio**")
             audio_file = st.file_uploader("Upload .wav file", type=["wav"],
                                           key="fusion_audio", label_visibility="collapsed")
             st.markdown('<div style="text-align: center; margin: 8px 0; color: var(--muted); font-size: 0.8rem;">— OR —</div>', unsafe_allow_html=True)
@@ -537,14 +537,13 @@ def page_fusion():
                 stop_prompt="Stop Recording",
                 just_once=False,
                 use_container_width=True,
-                format="wav",
                 key="mic_recorder"
             )
             if recorded_audio:
-                st.audio(recorded_audio["bytes"], format="audio/wav")
+                st.audio(recorded_audio["bytes"])
     with c3:
         with st.container(border=True):
-            st.markdown("**📸 Face Image**")
+            st.markdown("** Face Image**")
             face_file = st.file_uploader("Upload image", type=["jpg", "jpeg", "png"],
                                          key="fusion_face", label_visibility="collapsed")
             st.markdown('<div style="text-align: center; margin: 8px 0; color: var(--muted); font-size: 0.8rem;">— OR —</div>', unsafe_allow_html=True)

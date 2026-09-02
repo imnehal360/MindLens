@@ -22,3 +22,4 @@ requests>=2.33.1
 dnspython>=2.8.0
 email-validator>=2.0.0
 streamlit-mic-recorder>=0.0.8
+pydub>=0.25.1

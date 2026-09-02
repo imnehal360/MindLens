@@ -9,19 +9,7 @@ import pickle
 import tempfile
 import subprocess
 
-import torch
-import torch.nn as nn
-import librosa
-import timm
-import numpy as np
 
-from transformers import (
-    Wav2Vec2FeatureExtractor,
-    Wav2Vec2ForSequenceClassification
-)
-
-from PIL import Image
-from torchvision import transforms
 
 from fastapi import (
     FastAPI,
@@ -59,6 +47,19 @@ from personalization.trend import predict_future_risk
 MONGO_URI = os.getenv("MONGO_URI")
 JWT_SECRET = os.getenv("JWT_SECRET")
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
+HF_SPACE_URL = os.getenv("HF_SPACE_URL")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+from gradio_client import Client, handle_file
+
+def get_hf_client():
+    if not HF_SPACE_URL:
+        return None
+    try:
+        return Client(HF_SPACE_URL, hf_token=HF_TOKEN)
+    except Exception as e:
+        print(f"Error connecting to HF Space: {e}")
+        return None
 
 
 # ==========================================================
@@ -260,129 +261,11 @@ face_transform = transforms.Compose([
 # ==========================================================
 
 @app.on_event("startup")
-def load_models():
-
-    global vectorizer
-    global text_model
-    global feature_extractor
-    global audio_model
-    global face_model
-
-
-    # ======================================================
-    # TEXT MODEL
-    # ======================================================
-
-    try:
-
-        vectorizer_path = os.path.join(
-            TEXT_MODEL_DIR,
-            "tfidf_vectorizer.pkl"
-        )
-
-        text_model_path = os.path.join(
-            TEXT_MODEL_DIR,
-            "logistic_regression_model.pkl"
-        )
-
-
-        with open(
-            vectorizer_path,
-            "rb"
-        ) as f:
-
-            vectorizer = pickle.load(f)
-
-
-        with open(
-            text_model_path,
-            "rb"
-        ) as f:
-
-            text_model = pickle.load(f)
-
-
-        print("✅ Text model loaded")
-
-
-    except Exception as e:
-
-        print(
-            "❌ Text model error:",
-            repr(e)
-        )
-
-
-    # ======================================================
-    # AUDIO MODEL
-    # ======================================================
-
-    try:
-
-        feature_extractor = (
-            Wav2Vec2FeatureExtractor
-            .from_pretrained(
-                AUDIO_MODEL_DIR
-            )
-        )
-
-
-        audio_model = (
-            Wav2Vec2ForSequenceClassification
-            .from_pretrained(
-                AUDIO_MODEL_DIR
-            )
-        )
-
-
-        audio_model.to(device)
-        audio_model.eval()
-
-
-        print("✅ Audio model loaded")
-
-
-    except Exception as e:
-
-        print(
-            "❌ Audio model error:",
-            repr(e)
-        )
-
-
-    # ======================================================
-    # FACE MODEL
-    # ======================================================
-
-    try:
-
-        face_model = FaceModel()
-
-
-        face_model.load_state_dict(
-            torch.load(
-                os.path.join(
-                    FACE_MODEL_DIR,
-                    "face_model.pt"
-                ),
-                map_location=device
-            )
-        )
-
-
-        face_model.to(device)
-        face_model.eval()
-
-
-        print("✅ Face model loaded")
-
-
-    except Exception as e:
-
-        print(
-            "❌ Face model error:",
-            repr(e)
-        )
+def check_env():
+    if not HF_SPACE_URL:
+        print("⚠️ Warning: HF_SPACE_URL is not set!")
+    else:
+        print(f"✅ HF Space URL configured: {HF_SPACE_URL}")
 
 
 # ==========================================================
@@ -403,55 +286,14 @@ def root():
 # ==========================================================
 
 def predict_text_internal(text):
-
-    if vectorizer is None or text_model is None:
-
-        raise HTTPException(
-            status_code=503,
-            detail="Text model is not loaded"
-        )
-
-
-    vec = vectorizer.transform(
-        [text]
-    )
-
-
-    pred = int(
-        text_model.predict(vec)[0]
-    )
-
-
-    probs = text_model.predict_proba(vec)[0]
-
-
-    confidence = float(
-        max(probs)
-    )
-
-
-    if pred == 1:
-
-        risk_score = confidence * 100
-
-    else:
-
-        risk_score = (
-            1 - confidence
-        ) * 100
-
-
-    return {
-        "prediction": pred,
-        "confidence": round(
-            confidence,
-            4
-        ),
-        "risk_score": round(
-            risk_score,
-            2
-        )
-    }
+    client = get_hf_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="HF_SPACE_URL not configured or unreachable")
+    try:
+        result = client.predict(text=text, api_name="/predict_text")
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/predict/text")
@@ -680,305 +522,26 @@ def convert_audio_to_wav(
 # AUDIO PREDICTION
 # ==========================================================
 
-async def predict_audio_internal(
-    file: UploadFile
-):
-
-    if audio_model is None:
-
-        raise HTTPException(
-            status_code=503,
-            detail="Audio model is not loaded"
-        )
-
-
-    if feature_extractor is None:
-
-        raise HTTPException(
-            status_code=503,
-            detail="Audio feature extractor is not loaded"
-        )
-
-
-    # ------------------------------------------------------
-    # Read upload
-    # ------------------------------------------------------
-
+async def predict_audio_internal(file: UploadFile):
+    client = get_hf_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="HF_SPACE_URL not configured")
+    
     raw_bytes = await file.read()
-
-
-    if not raw_bytes:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Uploaded audio file is empty"
-        )
-
-
-    # ------------------------------------------------------
-    # Save original upload
-    #
-    # IMPORTANT:
-    # We preserve the filename extension as a hint,
-    # but FFmpeg actually detects/probes the content.
-    # ------------------------------------------------------
-
-    original_name = (
-        file.filename
-        or "uploaded_audio"
-    )
-
-
-    original_suffix = (
-        Path(original_name).suffix
-        or ".bin"
-    )
-
-
-    raw_path = None
-    converted_path = None
-
-
+    import tempfile
+    original_suffix = os.path.splitext(file.filename)[1] or ".bin"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=original_suffix) as tmp:
+        tmp.write(raw_bytes)
+        tmp_path = tmp.name
+        
     try:
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=original_suffix
-        ) as tmp:
-
-            tmp.write(raw_bytes)
-
-            raw_path = tmp.name
-
-
-        print(
-            f"🎵 Received audio: "
-            f"{original_name} "
-            f"({len(raw_bytes)} bytes)"
-        )
-
-
-        # --------------------------------------------------
-        # ALWAYS convert through FFmpeg
-        #
-        # This is the important fix.
-        # --------------------------------------------------
-
-        converted_path = (
-            convert_audio_to_wav(
-                raw_path
-            )
-        )
-
-
-        print(
-            f"🎵 Converted audio to WAV: "
-            f"{converted_path}"
-        )
-
-
-        # --------------------------------------------------
-        # Load the guaranteed WAV
-        # --------------------------------------------------
-
-        audio, sr = librosa.load(
-            converted_path,
-            sr=16000,
-            mono=True
-        )
-
-
-        if audio is None:
-
-            raise RuntimeError(
-                "Librosa returned no audio data."
-            )
-
-
-        if len(audio) == 0:
-
-            raise RuntimeError(
-                "Audio file contains no samples."
-            )
-
-
-        # Remove NaN / infinity values
-        audio = np.nan_to_num(
-            audio
-        ).astype(
-            np.float32
-        )
-
-
-        print(
-            f"🎵 Audio loaded: "
-            f"{len(audio)} samples, "
-            f"{sr} Hz"
-        )
-
-
-        # --------------------------------------------------
-        # Wav2Vec2 preprocessing
-        # --------------------------------------------------
-
-        inputs = feature_extractor(
-            audio,
-            sampling_rate=16000,
-            return_tensors="pt",
-            padding=True
-        )
-
-
-        input_values = (
-            inputs.input_values
-            .to(device)
-        )
-
-
-        attention_mask = None
-
-        if hasattr(
-            inputs,
-            "attention_mask"
-        ):
-
-            if inputs.attention_mask is not None:
-
-                attention_mask = (
-                    inputs.attention_mask
-                    .to(device)
-                )
-
-
-        # --------------------------------------------------
-        # Audio model prediction
-        # --------------------------------------------------
-
-        with torch.no_grad():
-
-            if attention_mask is not None:
-
-                outputs = audio_model(
-                    input_values=input_values,
-                    attention_mask=attention_mask
-                )
-
-            else:
-
-                outputs = audio_model(
-                    input_values=input_values
-                )
-
-
-            logits = outputs.logits
-
-
-            probs = torch.softmax(
-                logits,
-                dim=1
-            )
-
-
-        pred_id = torch.argmax(
-            probs,
-            dim=1
-        ).item()
-
-
-        confidence = (
-            probs[0][pred_id]
-            .item()
-        )
-
-
-        # --------------------------------------------------
-        # Validate label
-        # --------------------------------------------------
-
-        if pred_id not in audio_id2label:
-
-            raise RuntimeError(
-                f"Audio model returned "
-                f"unknown class ID: {pred_id}"
-            )
-
-
-        emotion = (
-            audio_id2label[pred_id]
-        )
-
-
-        risk_score = (
-            audio_emotion_to_risk(
-                emotion
-            )
-        )
-
-
-        print(
-            f"🎵 Audio prediction: "
-            f"{emotion} "
-            f"(confidence={confidence:.4f})"
-        )
-
-
-        return {
-
-            "emotion": emotion,
-
-            "confidence": round(
-                confidence,
-                4
-            ),
-
-            "risk_score": risk_score
-
-        }
-
-
-    except HTTPException:
-
-        raise
-
-
+        result = client.predict(audio_path=handle_file(tmp_path), api_name="/predict_audio")
+        return result
     except Exception as e:
-
-        print(
-            "❌ Audio prediction error:",
-            repr(e)
-        )
-
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Unable to process the uploaded "
-                f"audio file: {str(e)}"
-            )
-        )
-
-
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
-
-        # --------------------------------------------------
-        # Cleanup temporary files
-        # --------------------------------------------------
-
-        if raw_path:
-
-            try:
-
-                if os.path.exists(
-                    raw_path
-                ):
-
-                    os.remove(
-                        raw_path
-                    )
-
-            except Exception:
-
-                pass
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
         if converted_path:
@@ -1044,152 +607,26 @@ def face_emotion_to_risk(
     )
 
 
-async def predict_face_internal(
-    file: UploadFile
-):
-
-    if face_model is None:
-
-        raise HTTPException(
-            status_code=503,
-            detail="Face model is not loaded"
-        )
-
-
+async def predict_face_internal(file: UploadFile):
+    client = get_hf_client()
+    if not client:
+        raise HTTPException(status_code=503, detail="HF_SPACE_URL not configured")
+    
     raw_bytes = await file.read()
-
-
-    if not raw_bytes:
-
-        raise HTTPException(
-            status_code=400,
-            detail="Uploaded face image is empty"
-        )
-
-
-    path = None
-
-
+    import tempfile
+    original_suffix = os.path.splitext(file.filename)[1] or ".jpg"
+    with tempfile.NamedTemporaryFile(delete=False, suffix=original_suffix) as tmp:
+        tmp.write(raw_bytes)
+        tmp_path = tmp.name
+        
     try:
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".jpg"
-        ) as tmp:
-
-            tmp.write(
-                raw_bytes
-            )
-
-            path = tmp.name
-
-
-        img = Image.open(
-            path
-        ).convert(
-            "RGB"
-        )
-
-
-        img = face_transform(
-            img
-        ).unsqueeze(
-            0
-        ).to(device)
-
-
-        with torch.no_grad():
-
-            logits = face_model(
-                img
-            )
-
-            probs = torch.softmax(
-                logits,
-                dim=1
-            )
-
-
-        pred_id = torch.argmax(
-            probs,
-            dim=1
-        ).item()
-
-
-        confidence = (
-            probs[0][pred_id]
-            .item()
-        )
-
-
-        if pred_id not in face_id2label:
-
-            raise RuntimeError(
-                f"Face model returned "
-                f"unknown class ID: {pred_id}"
-            )
-
-
-        emotion = (
-            face_id2label[pred_id]
-        )
-
-
-        return {
-
-            "emotion": emotion,
-
-            "confidence": round(
-                confidence,
-                4
-            ),
-
-            "risk_score": face_emotion_to_risk(
-                emotion
-            )
-
-        }
-
-
-    except HTTPException:
-
-        raise
-
-
+        result = client.predict(image_path=handle_file(tmp_path), api_name="/predict_face")
+        return result
     except Exception as e:
-
-        print(
-            "❌ Face prediction error:",
-            repr(e)
-        )
-
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Unable to process the "
-                f"uploaded face image: {str(e)}"
-            )
-        )
-
-
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
-
-        if path:
-
-            try:
-
-                if os.path.exists(
-                    path
-                ):
-
-                    os.remove(
-                        path
-                    )
-
-            except Exception:
-
-                pass
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 # ==========================================================

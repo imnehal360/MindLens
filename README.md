@@ -1,4 +1,4 @@
-# 🧠 MindLens: Multimodal Mental Health Assessment & Forecasting Platform
+#  MindLens: Multimodal Mental Health Assessment & Forecasting Platform
 
 MindLens is an end-to-end AI-powered multimodal platform engineered to deliver objective, non-invasive, real-time mental wellness assessments and longitudinal trend forecasting. 
 
@@ -6,7 +6,7 @@ By fusing signals across three distinct modalities—**linguistic semantics (Tex
 
 ---
 
-## 🌟 Key Features
+##  Key Features
 
 - **Multimodal AI Assessment:**
   - **Text Modality:** TF-IDF n-gram vectorization with Logistic Regression for fast, high-accuracy emotion & risk classification.
@@ -28,7 +28,7 @@ By fusing signals across three distinct modalities—**linguistic semantics (Tex
 
 ---
 
-## 🏗️ System Architecture
+##  System Architecture
 
 ```mermaid
 flowchart LR
@@ -63,7 +63,7 @@ flowchart LR
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 mindlens/
@@ -96,7 +96,7 @@ mindlens/
 
 ---
 
-## 🛠️ Prerequisites
+##  Prerequisites
 
 - **Python 3.11+**
 - **FFmpeg** (required for audio transcoding)
@@ -104,21 +104,8 @@ mindlens/
   - On Ubuntu/Debian: `sudo apt-get install -y ffmpeg`
 - **MongoDB Atlas** account or a local MongoDB instance
 
----
 
-## ⚙️ Environment Configuration
-
-Create or verify the `.env` file in the project root directory:
-
-```env
-MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/?appName=MindLens
-API_BASE=http://localhost:8000
-JWT_SECRET=your_jwt_secret_key_here
-```
-
----
-
-## 🚀 Running the Project Locally
+##  Running the Project Locally
 
 ### 1. Set Up Virtual Environment
 
@@ -174,7 +161,7 @@ docker-compose up --build
 
 ---
 
-## 🔌 API Reference
+##  API Reference
 
 All protected endpoints expect an `Authorization: Bearer <JWT_TOKEN>` header.
 

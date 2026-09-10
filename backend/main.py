@@ -3,6 +3,7 @@ import sys
 import os
 from pathlib import Path
 
+# Add backend/ itself to sys.path so sibling modules (auth, database) are importable
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import pickle
@@ -45,8 +46,10 @@ from auth import get_current_user
 # ROOT / ENVIRONMENT
 # ==========================================================
 
+# backend/ is one level below project root
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
+# Ensure project root is on sys.path for cross-folder imports
 sys.path.append(str(ROOT_DIR))
 
 load_dotenv(ROOT_DIR / ".env")
@@ -102,26 +105,27 @@ print(f"🖥️ Using device: {device}")
 # PATHS
 # ==========================================================
 
-BASE_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.abspath(__file__)
-    )
+# AI_Agent/ lives at project root, as a sibling of backend/
+AI_AGENT_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),  # backend/
+    "..",                                         # project root
+    "AI_Agent"
 )
 
 TEXT_MODEL_DIR = os.path.join(
-    BASE_DIR,
+    AI_AGENT_DIR,
     "models",
     "text_model"
 )
 
 AUDIO_MODEL_DIR = os.path.join(
-    BASE_DIR,
+    AI_AGENT_DIR,
     "models",
     "audio_model"
 )
 
 FACE_MODEL_DIR = os.path.join(
-    BASE_DIR,
+    AI_AGENT_DIR,
     "models",
     "face_model"
 )

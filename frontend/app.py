@@ -465,7 +465,19 @@ def page_auth():
                     with st.spinner("Creating account…"):
                         data, code = api_signup(name, email2, pass2)
                     if code == 200:
-                        st.success("Account created! Please log in.")
+                        token = data.get("access_token")
+                        if not token:
+                            login_data, login_code = api_login(email2, pass2)
+                            if login_code == 200:
+                                token = login_data.get("access_token")
+                        if token:
+                            st.session_state.token = token
+                            me = api_me()
+                            st.session_state.user = me
+                            st.success(f"Welcome, {me.get('name', name)} 👋")
+                            st.rerun()
+                        else:
+                            st.success("Account created! Please log in.")
                     else:
                         st.error(data.get("detail", "Signup failed"))
                 else:

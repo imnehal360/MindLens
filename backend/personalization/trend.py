@@ -3,6 +3,9 @@ import torch.nn as nn
 import numpy as np
 import pandas as pd
 import joblib
+import os
+from pathlib import Path
+
 torch.set_num_threads(2)
 
 from personalization.history import get_last_7
@@ -22,35 +25,32 @@ class EmotionLSTM(nn.Module):
             dropout=0.2
         )
 
-        self.fc = nn.Linear(64,1)
+        self.fc = nn.Linear(64, 1)
 
-    def forward(self,x):
-        out,_ = self.lstm(x)
-        out = out[:,-1,:]
+    def forward(self, x):
+        out, _ = self.lstm(x)
+        out = out[:, -1, :]
         out = self.fc(out)
         return out.squeeze()
 
 
-import os
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "emotion_lstm.pth")
+# AI_Agent/ is a sibling of backend/ — both live under project root
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+AI_AGENT_DIR = ROOT_DIR / "AI_Agent"
 
-# Load model
+MODEL_PATH = AI_AGENT_DIR / "models" / "emotion_lstm.pth"
+SCALER_PATH = AI_AGENT_DIR / "scaler.pkl"
+
+# Load LSTM model
 model = EmotionLSTM()
 model.load_state_dict(
-    torch.load(MODEL_PATH, map_location="cpu")
+    torch.load(str(MODEL_PATH), map_location="cpu")
 )
 model.eval()
 
 # Load scaler
-import joblib
-
-SCALER_PATH = os.path.join(BASE_DIR, "scaler.pkl")
-
 print("Loading scaler from:", SCALER_PATH)
-
-scaler = joblib.load(SCALER_PATH)
-
+scaler = joblib.load(str(SCALER_PATH))
 
 
 def predict_future_risk(user_id):
@@ -70,7 +70,6 @@ def predict_future_risk(user_id):
             h["risk"]
         ])
 
-
     arr = pd.DataFrame(arr, columns=[
         "depression",
         "anxiety",
@@ -87,4 +86,4 @@ def predict_future_risk(user_id):
 
     pred = max(0, min(1, pred))
 
-    return round(pred,4)
+    return round(pred, 4)

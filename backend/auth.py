@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+# backend/ is one level below project root
 ROOT_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT_DIR / ".env")
 
@@ -73,7 +74,7 @@ def signup(user: SignupModel):
         raise HTTPException(status_code=500, detail="Internal server error during password hashing.")
         
     try:
-        users_collection.insert_one({
+        new_user = users_collection.insert_one({
             "name": user.name,
             "email": user.email,
             "password": hashed_pw,
@@ -83,7 +84,16 @@ def signup(user: SignupModel):
         print("EXCEPTION IN SIGNUP:", e)
         raise HTTPException(status_code=503, detail="Database is offline. Cannot complete signup.")
 
-    return {"message": "User created successfully"}
+    token = create_token({
+        "user_id": str(new_user.inserted_id),
+        "email": user.email
+    })
+
+    return {
+        "message": "User created successfully",
+        "access_token": token,
+        "token_type": "bearer"
+    }
 
 @router.post("/login")
 def login(user: LoginModel):

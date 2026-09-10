@@ -20,16 +20,14 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy project files
-COPY api /app/api
+# Copy project folders
+COPY backend /app/backend
 COPY frontend /app/frontend
-COPY personalization /app/personalization
-COPY models /app/models
-COPY scaler.pkl /app/scaler.pkl
+COPY AI_Agent /app/AI_Agent
 
 # Expose ports (FastAPI on 8000, Streamlit on 8501)
 EXPOSE 8000
 EXPOSE 8501
 
-# Default command (can be overridden in docker-compose)
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default command: run FastAPI from the backend folder
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

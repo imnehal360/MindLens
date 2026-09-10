@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 class LazyCollection:
     def __init__(self, collection_name):
@@ -8,12 +9,10 @@ class LazyCollection:
 
     def _get_collection(self):
         if self._collection is None:
-            import os
-            from pathlib import Path
             from pymongo import MongoClient
-            from dotenv import load_dotenv
 
-            ROOT_DIR = Path(__file__).resolve().parent.parent
+            # backend/personalization/ is two levels below project root
+            ROOT_DIR = Path(__file__).resolve().parent.parent.parent
             load_dotenv(ROOT_DIR / ".env")
             uri = os.getenv("MONGO_URI")
 
@@ -46,4 +45,8 @@ class LazyCollection:
     def __getitem__(self, name):
         return self._get_collection()[name]
 
+# Collections
+history_collection = LazyCollection("history")
 users_collection = LazyCollection("users")
+alerts_collection = LazyCollection("alerts")
+predictions_collection = LazyCollection("predictions")

@@ -104,19 +104,6 @@ mindlens/
   - On Ubuntu/Debian: `sudo apt-get install -y ffmpeg`
 - **MongoDB Atlas** account or a local MongoDB instance
 
----
-
-## ⚙️ Environment Configuration
-
-Create or verify the `.env` file in the project root directory:
-
-```env
-MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/?appName=MindLens
-API_BASE=http://localhost:8000
-JWT_SECRET=your_jwt_secret_key_here
-```
-
----
 
 ##  Running the Project Locally
 
